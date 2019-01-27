@@ -19,6 +19,13 @@ function randInt(begin, end) {
   return Math.round(Math.random()*(end - begin)) + begin
 }
 
+function randGuid() {
+    let S4 = () => {
+       return (((1+Math.random())*0x10000)|0).toString(16).substring(1)
+    }
+    return (S4()+S4()+"-"+S4()+"-"+S4()+"-"+S4()+"-"+S4()+S4()+S4())
+}
+
 class SnakeController {
   constructor(snake, initRow, initCol, initDir, targetLength) {
     this.snake = snake
@@ -27,6 +34,8 @@ class SnakeController {
     this.targetLength = targetLength
 
     document.addEventListener('keypress', evt => this.dispatch(evt))
+
+    snake.game.controllers.push(this)
   }
 
   dispatch(evt) {
@@ -68,15 +77,17 @@ class SnakeController {
 
     const sameAsNewSeg = x => x.row === newRow && x.col === newCol
 
-    // ran into self
-    if(this.snake.segments.find(sameAsNewSeg)) {
-      return false
+    // ran into self or other
+    for(let snake of game.snakes) {
+      if(snake.segments.find(sameAsNewSeg)) {
+        return false
+      }
     }
 
     // ate an apple
     let appleIndex = game.apples.findIndex(sameAsNewSeg)
     if(appleIndex >= 0) {
-      game.apples.splice(appleIndex, 1)
+      game.removeApple(appleIndex)
       this.targetLength += 1
     }
 
@@ -86,15 +97,19 @@ class SnakeController {
       this.snake.segments.pop()
     }
 
+    this.snake.broadcastSelf()
 
     return true
   }
 }
 
 class Snake {
-  constructor(game) {
+  constructor(game, playerId) {
     this.game = game
+    this.playerId = playerId || this.game.playerId
     this.segments = []
+
+    game.snakes.push(this)
   }
 
   draw() {
@@ -103,6 +118,16 @@ class Snake {
     }
   }
 
+  broadcastSelf() {
+    this.game.broadcast('updateSnake', {
+      playerId: this.playerId,
+      segments: this.segments
+    })
+  }
+
+  update(newSegments) {
+    this.segments = newSegments
+  }
 }
 
 class Apple {
@@ -118,9 +143,10 @@ class Apple {
 }
 
 class Game {
-  constructor(canvas, rows, cols) {
+  constructor(comm, canvas, rows, cols) {
     this.canvas = canvas
     this.ctx = canvas.getContext('2d')
+    this.comm = comm
 
     this.rows = rows
     this.cols = cols
@@ -131,7 +157,67 @@ class Game {
 
     this.targetApples = 5
 
+    this.playerId = randGuid()
+    this.comm.addListener((verb, data) => this.receive(verb, data))
+
+    this.broadcast('createPlayer', this.playerId)
+
     this.intervalId = window.setInterval(() => this.run(), 100)
+  }
+
+  broadcast(verb, data) {
+    this.comm.broadcast(verb, data)
+  }
+
+  receive(verb, data) {
+    switch(verb) {
+      case 'createPlayer':
+        this.createRemotePlayer(data)
+        break
+      case 'deletePlayer':
+        this.deleteRemotePlayer(data)
+        break
+      case 'updateSnake':
+        this.updateRemoteSnake(data)
+        break
+      case 'createApple':
+        this.createRemoteApple(data)
+        break
+      case 'deleteApple':
+        this.deleteRemoteApple(data)
+        break
+    }
+  }
+
+  createRemotePlayer(playerId) {
+    this.snakes.push(new Snake(this, playerId))
+  }
+
+  deleteRemotePlayer(playerId) {
+    let snakeIndex = this.snakes.findIndex(x => x.playerId === playerId)
+    if(snakeIndex >= 0) {
+      this.snake.slice(snakeIndex, 1)
+    }
+  }
+
+  updateRemoteSnake(data) {
+    let snake = this.snakes.find(x => x.playerId === data.playerId)
+    if(!snake) {
+      return
+    }
+
+    snake.update(data.segments)
+  }
+
+  createRemoteApple(data) {
+    this.apples.push(new Apple(this, data.row, data.col))
+  }
+
+  deleteRemoteApple(data) {
+    let index = this.apples.findIndex(x => x.row === data.row && x.col === data.col)
+    if(index >= 0) {
+      this.apples.slice(index, 1)
+    }
   }
 
   drawSegment(row, col) {
@@ -153,9 +239,17 @@ class Game {
     let col = randInt(0, this.cols)
     this.apples.unshift(new Apple(this, row, col))
 
+    this.broadcast('createApple', { row, col })
+
     if(this.apples.length > this.targetApples) {
-      this.apples.pop()
+      this.removeApple(0)
     }
+  }
+
+  removeApple(index) {
+    let { row, col } = this.apples[index]
+    this.broadcast('deleteApple', { row, col })
+    this.apples.splice(index, 1)
   }
 
   run() {
@@ -164,6 +258,7 @@ class Game {
 
     for(let controller of this.controllers) {
       if(!controller.run()) {
+        this.broadcast('deletePlayer', this.playerId)
         alert('game over sucka')
         window.clearInterval(this.intervalId)
         return
@@ -177,17 +272,48 @@ class Game {
       apple.draw()
     }
 
-    if(Math.random() < 0.05) {
+    if(Math.random() < 0.05 / this.snakes.length) {
       this.shuffleApples()
     }
   }
 }
 
-function main() {
-  let game = new Game(document.getElementById('game-canvas'), 30, 40)
-  let snake = new Snake(game)
-  let controller = new SnakeController(snake, 1, 1, RIGHT, 4)
+class Comm {
+  constructor(ws) {
+    this.ws = ws
+    this.listeners = []
+    
+    this.ws.onmessage = evt => {
+      let {verb, data} = JSON.parse(evt.data)
+      for(let listener of this.listeners) {
+        listener(verb, data)
+      }
+    }
+  }
 
-  game.snakes.push(snake)
-  game.controllers.push(controller)
+  addListener(listener) {
+    this.listeners.push(listener)
+  }
+
+  broadcast(verb, data) {
+    this.ws.send(JSON.stringify({ verb, data }))
+  }
+}
+
+function connectWebsocket(url, callback) {
+  let ws = new WebSocket(url)
+  ws.onopen = () => {
+    callback(new Comm(ws))
+  }
+}
+
+function main() {
+  var wsUrl = new URL('/ws', window.location.href)
+  wsUrl.protocol = wsUrl.protocol.replace('http', 'ws')
+
+  connectWebsocket(wsUrl.href, (comm, err) => {
+    let game = new Game(comm, document.getElementById('game-canvas'), 30, 40)
+    let snake = new Snake(game)
+    let controller = new SnakeController(snake, randInt(0, 30), randInt(0, 40), RIGHT, 4)
+  })
 }

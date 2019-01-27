@@ -1,0 +1,12 @@
+version: '2'
+services:
+  nginx:
+    image: nginx:latest
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/snek.conf
+      - ./:/srv/http
+    ports:
+      - 8080:80
+  snek:
+    image: snek
+    build: .
