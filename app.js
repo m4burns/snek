@@ -158,11 +158,12 @@ class Game {
     this.targetApples = 5
 
     this.playerId = randGuid()
+    console.log('new Game playerId=', this.playerId)
     this.comm.addListener((verb, data) => this.receive(verb, data))
 
     this.broadcast('createPlayer', this.playerId)
 
-    this.intervalId = window.setInterval(() => this.run(), 100)
+    this.intervalId = window.setInterval(() => this.run(), 500)
   }
 
   broadcast(verb, data) {
@@ -180,8 +181,8 @@ class Game {
       case 'updateSnake':
         this.updateRemoteSnake(data)
         break
-      case 'createApple':
-        this.createRemoteApple(data)
+      case 'updateApples':
+        this.updateRemoteApples(data)
         break
       case 'deleteApple':
         this.deleteRemoteApple(data)
@@ -190,14 +191,22 @@ class Game {
   }
 
   createRemotePlayer(playerId) {
-    this.snakes.push(new Snake(this, playerId))
+    let snakeIndex = this.snakes.findIndex(x => x.playerId === playerId)
+    if(snakeIndex === -1) {
+      new Snake(this, playerId)
+      this.broadcast('createPlayer', this.playerId)
+      for(let apple of this.apples) {
+        this.broadcast('updateApples', this.apples.map(a => ({ row: a.row, col: a.col })))
+      }
+    }
   }
 
   deleteRemotePlayer(playerId) {
     let snakeIndex = this.snakes.findIndex(x => x.playerId === playerId)
     if(snakeIndex >= 0) {
-      this.snake.slice(snakeIndex, 1)
+      this.snakes.splice(snakeIndex, 1)
     }
+    console.log(this.snakes)
   }
 
   updateRemoteSnake(data) {
@@ -209,15 +218,8 @@ class Game {
     snake.update(data.segments)
   }
 
-  createRemoteApple(data) {
-    this.apples.push(new Apple(this, data.row, data.col))
-  }
-
-  deleteRemoteApple(data) {
-    let index = this.apples.findIndex(x => x.row === data.row && x.col === data.col)
-    if(index >= 0) {
-      this.apples.slice(index, 1)
-    }
+  updateRemoteApples(data) {
+    this.apples = data.map(x => new Apple(this, x.row, x.col))
   }
 
   drawSegment(row, col) {
@@ -239,17 +241,17 @@ class Game {
     let col = randInt(0, this.cols)
     this.apples.unshift(new Apple(this, row, col))
 
-    this.broadcast('createApple', { row, col })
+    this.broadcast('updateApples', this.apples.map(a => ({ row: a.row, col: a.col })))
 
     if(this.apples.length > this.targetApples) {
-      this.removeApple(0)
+      this.apples.pop()
     }
   }
 
   removeApple(index) {
     let { row, col } = this.apples[index]
-    this.broadcast('deleteApple', { row, col })
     this.apples.splice(index, 1)
+    this.broadcast('updateApples', this.apples.map(a => ({ row: a.row, col: a.col })))
   }
 
   run() {
@@ -261,6 +263,7 @@ class Game {
         this.broadcast('deletePlayer', this.playerId)
         alert('game over sucka')
         window.clearInterval(this.intervalId)
+        this.comm.stop()
         return
       }
     }
@@ -297,6 +300,10 @@ class Comm {
 
   broadcast(verb, data) {
     this.ws.send(JSON.stringify({ verb, data }))
+  }
+
+  stop() {
+    this.ws.close()
   }
 }
 
