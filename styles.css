@@ -1,0 +1,123 @@
+/* http://meyerweb.com/eric/tools/css/reset/ 
+   v2.0 | 20110126
+   License: none (public domain)
+*/
+
+* {
+  box-sizing: border-box;
+}
+
+html, body, div, span, applet, object, iframe,
+h1, h2, h3, h4, h5, h6, p, blockquote, pre,
+a, abbr, acronym, address, big, cite, code,
+del, dfn, em, img, ins, kbd, q, s, samp,
+small, strike, strong, sub, sup, tt, var,
+b, u, i, center,
+dl, dt, dd, ol, ul, li,
+fieldset, form, label, legend,
+table, caption, tbody, tfoot, thead, tr, th, td,
+article, aside, canvas, details, embed, 
+figure, figcaption, footer, header, hgroup, 
+menu, nav, output, ruby, section, summary,
+time, mark, audio, video {
+	margin: 0;
+	padding: 0;
+	border: 0;
+	font-size: 100%;
+	font: inherit;
+	vertical-align: baseline;
+}
+/* HTML5 display-role reset for older browsers */
+article, aside, details, figcaption, figure, 
+footer, header, hgroup, menu, nav, section {
+	display: block;
+}
+body {
+	line-height: 1;
+}
+ol, ul {
+	list-style: none;
+}
+blockquote, q {
+	quotes: none;
+}
+blockquote:before, blockquote:after,
+q:before, q:after {
+	content: '';
+	content: none;
+}
+table {
+	border-collapse: collapse;
+	border-spacing: 0;
+}
+
+#game-container{
+  display: flex;
+  justify-content: center;
+  align-items:center;
+  width:100vw;
+  height:100vh;
+}
+#game-canvas{
+  background-image: linear-gradient(120deg, #84fab0 0%, #8fd3f4 100%);
+}
+
+#animations-container{
+  display: flex;
+  justify-content: center;
+  align-items:center;
+  width:100vw;
+  height:100vh;
+  position:fixed;
+  left:0;
+  top:0;
+}
+
+#animations-box{
+  width:800px;
+  height:600px;
+  position:relative;
+}
+
+#animations-box .advice-icon{
+  position:absolute;
+  background-image: linear-gradient(to top, #f77062 0%, #fe5196 100%);
+  border-radius: 50px;
+  height:30px;
+  width:30px;
+}
+
+
+#animations-box .advice-icon > path{
+  transform: scale(.7);
+  transform-origin: 50% 50%;
+}
+
+#animations-box img{
+  position:absolute;
+  border-radius:100px;
+}
+
+#advice-container{
+  width:100%;
+  height:100%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  text-align:center;
+  font-family: 'Pacifico', cursive;
+  color:white;
+  font-size: 3rem;
+  padding:100px;
+  box-sizing: border-box;
+  line-height:4rem;
+}
+
+#svg-icons{
+  display:none;
+}
+
+#seed path{
+  transform:scale(0.7);
+  transform-origin: 50% 50%;
+}
